@@ -22,6 +22,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Vizcom AI 3D model generator')
     parser.add_argument('--imageUrl', help='URL of the image to process')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--prompt', help='Prompt text for image generation')
+    parser.add_argument('--headed', action='store_true', help='Run browser in headed (non-headless) mode')
     return parser.parse_args()
 
 # セットアップロギング
@@ -49,6 +51,12 @@ async def _prepare_image_for_upload(actor_input: dict = None) -> Tuple[str, str]
         Tuple of (file_path, original_filename)
     """
     actor_input = actor_input or {}
+    # If leg.png exists in cwd, use it regardless of imageUrl (new spec)
+    leg_path = os.path.join(os.getcwd(), 'leg.png')
+    if os.path.isfile(leg_path):
+        Actor.log.info(f"Using default leg image at: {leg_path}")
+        return leg_path, 'leg.png'
+
     image_url = actor_input.get('imageUrl')
     
     if image_url:
@@ -96,7 +104,7 @@ async def _prepare_image_for_upload(actor_input: dict = None) -> Tuple[str, str]
     else:
         Actor.log.info("No image URL provided. Using sample image.")
     
-    # Create sample image
+    # Create sample image (fallback)
     sample_path = os.path.join(os.getcwd(), 'sample.png')
     Actor.log.info(f"Using sample image at: {sample_path}")
     
@@ -196,7 +204,7 @@ async def force_window_activation(page: Page, maximize: bool = False, flash_maxi
     except Exception as e:
         Actor.log.error(f"Error while trying to activate window: {str(e)}")
 
-async def retry_click(element: ElementHandle, page: Page = None, selector: str = None, max_attempts: int = 3):
+async def retry_click(element: ElementHandle, page: Page = None, selector: str = None, max_attempts: int = 4):
     """
     Retry clicking an element with multiple methods if needed.
     """
@@ -219,6 +227,14 @@ async def retry_click(element: ElementHandle, page: Page = None, selector: str =
                 Actor.log.info(f"Standard click successful (attempt {attempt+1})")
                 return True
             elif attempt == 1:
+                # Force click via Playwright 'force=True'
+                try:
+                    await element.click(force=True)
+                    Actor.log.info(f"Force click successful (attempt {attempt+1})")
+                    return True
+                except Exception:
+                    pass  # fallback to next strategy
+            elif attempt == 2:
                 # Force click via JavaScript
                 await element.evaluate("el => el.click()")
                 Actor.log.info(f"JavaScript click successful (attempt {attempt+1})")
@@ -239,7 +255,7 @@ async def retry_click(element: ElementHandle, page: Page = None, selector: str =
     
     return False
 
-async def perform_button_sequence(page: Page, upload_path: str, original_filename: str):
+async def perform_button_sequence(page: Page, upload_path: str, original_filename: str, prompt_text: str | None = None):
     """
     Perform a sequence of button clicks for Vizcom AI workflow.
     
@@ -259,12 +275,23 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
     # 結果を格納する辞書を初期化
     result_data = {}
     
-    buttons_to_click = [
-        {"text": "New file", "delay": 4000},
-        {"text": "Start in Studio", "delay": 4000, "maximize_after": True},
-        {"text": "Upload an image", "delay": 3000},
-        {"text": "options_button", "delay": 6000}
-    ]
+    # Define the sequence of actions. If a prompt is provided, we replace the
+    # "Upload an image" step with a prompt-driven generation flow.
+    if prompt_text:
+        buttons_to_click = [
+            {"text": "New file", "delay": 4000},
+            {"text": "Start in Studio", "delay": 4000, "maximize_after": True},
+            {"text": "Upload an image", "delay": 4000},
+            {"text": "prompt_generate", "delay": 3000},  # prompt adjust
+            {"text": "options_button", "delay": 6000}
+        ]
+    else:
+        buttons_to_click = [
+            {"text": "New file", "delay": 4000},
+            {"text": "Start in Studio", "delay": 4000, "maximize_after": True},
+            {"text": "Upload an image", "delay": 4000},
+            {"text": "options_button", "delay": 6000}
+        ]
     
     for button_info in buttons_to_click:
         button_text = button_info["text"]
@@ -465,7 +492,8 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                         'button:has-text("Create")',
                         'a:has-text("Create")',
                         'div[role="button"]:has-text("Create")',
-                        'span:has-text("Create")'
+                        'span:has-text("Create")',
+                        'button.sc-jmfXTE.hhtzaE'
                     ]
                     
                     for selector in partial_selectors:
@@ -485,133 +513,40 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                 # 画面全体のスクリーンショット
                 await page.screenshot(path="screen_before_create.png")
                 
-                # ボタンが見つからない場合はJavaScriptを使って特定のパターンを持つボタンを探す
-                if not button:
-                    Actor.log.info('Using JavaScript to find and click Create button')
-                    
-                    # JavaScriptによる最も強力な検出と強制クリック
-                    js_result = await page.evaluate("""
-                    () => {
-                        // すべてのテキストを取得
-                        const getAllText = () => {
-                            return Array.from(document.querySelectorAll('*')).map(el => {
-                                return el.textContent ? el.textContent.trim() : '';
-                            }).filter(t => t.length > 0);
-                        };
-                        console.log('All text in page:', getAllText().join(' | '));
-                        
-                        // テキスト完全一致で探す
-                        const findExactTextAndClick = (text) => {
-                            const elements = Array.from(document.querySelectorAll('button, a, div[role="button"], span[role="button"]'));
-                            const exact = elements.find(el => el.textContent && el.textContent.trim() === text);
-                            if (exact) {
-                                exact.click();
-                                return `Clicked exact text match: ${text}`;
-                            }
-                            return null;
-                        };
-                        
-                        // 最も一般的なケース - 「Create」という正確なテキストを持つボタン
-                        let result = findExactTextAndClick('Create');
-                        if (result) return result;
-                        
-                        // Createを含むボタンを探す
-                        const createButtons = Array.from(document.querySelectorAll('button, a, div[role="button"]')).filter(el => 
-                            el.textContent && el.textContent.toLowerCase().includes('create')
-                        );
-                        
-                        if (createButtons.length > 0) {
-                            createButtons[0].click();
-                            return `Clicked button containing create: ${createButtons[0].textContent}`;
-                        }
-                        
-                        // 主要なアクションボタンを探す（スタイルから判断）
-                        const actionButtons = Array.from(document.querySelectorAll('button, a[role="button"], div[role="button"]')).filter(btn => {
-                            const style = window.getComputedStyle(btn);
-                            // 青/緑色の背景、白いテキスト、太字などは通常主要なアクションボタン
-                            const isPrimary = 
-                                style.backgroundColor.includes('rgb(0, 0') || 
-                                style.backgroundColor.includes('rgb(0, 1') || 
-                                style.backgroundColor.includes('rgb(0, 2') || 
-                                style.backgroundColor.includes('blue') || 
-                                style.backgroundColor.includes('green') ||
-                                style.color === 'rgb(255, 255, 255)' || 
-                                style.fontWeight === 'bold' ||
-                                btn.classList.contains('primary') ||
-                                btn.getAttribute('aria-label')?.includes('main');
-                            
-                            return isPrimary && btn.getBoundingClientRect().width > 50;
-                        });
-                        
-                        if (actionButtons.length > 0) {
-                            // 強調表示してからクリック
-                            actionButtons[0].style.border = '3px solid red';
-                            setTimeout(() => {
-                                actionButtons[0].click();
-                            }, 100);
-                            return `Clicked primary action button with style detection`;
-                        }
-                        
-                        // 最後の手段：フォーム内の送信ボタン
-                        const submitButtons = document.querySelectorAll('input[type="submit"], button[type="submit"]');
-                        if (submitButtons.length > 0) {
-                            submitButtons[0].click();
-                            return 'Clicked submit button';
-                        }
-                        
-                        // 右下のボタンをクリック（多くのUIでアクションボタンは右下）
-                        const allButtons = Array.from(document.querySelectorAll('button, a[role="button"], div[role="button"]'));
-                        if (allButtons.length > 0) {
-                            // 右下にあるボタンを優先
-                            allButtons.sort((a, b) => {
-                                const rectA = a.getBoundingClientRect();
-                                const rectB = b.getBoundingClientRect();
-                                // 下部にあるボタンを優先
-                                const bottomDiff = rectB.bottom - rectA.bottom;
-                                // ほぼ同じ高さなら右側を優先
-                                if (Math.abs(bottomDiff) < 50) {
-                                    return rectB.right - rectA.right;
-                                }
-                                return bottomDiff;
-                            });
-                            
-                            allButtons[0].click();
-                            return `Clicked rightmost bottom button as fallback`;
-                        }
-                        
-                        return 'No suitable Create button found';
-                    }
-                    """)
-                    
-                    Actor.log.info(f'JavaScript Create button search: {js_result}')
-                    
-                    # スクリーンショット
-                    await page.screenshot(path="after_js_create_button.png")
-                    
-                    # ウィンドウを最大化して活性化
-                    await force_window_activation(page, maximize=True)
-                
-                # プラスボタンが既に表示されているかチェック
-                plus_visible = await page.evaluate("""
-                () => {
-                    // プラスアイコンのSVGパスを持つボタンをチェック
-                    const plusButtons = document.querySelectorAll('button svg path[d*="M8 2v12"]');
-                    if (plusButtons.length > 0) return true;
-                    
-                    // クラス名でチェック
-                    const styledButtons = document.querySelectorAll('button.hynoDj, button[class*="hynoDj"]');
-                    if (styledButtons.length > 0) return true;
-                    
-                    return false;
-                }
-                """)
-                
-                if plus_visible:
-                    Actor.log.info('Plus button already visible, skipping Create and moving to next step')
-                    # 次のステップ（プラスボタン）に進むためにCreateをスキップ
-                    continue
-                
-                # 少し待機してから次のステップに進む
+                # クリック or 閉じるボタンのどちらかが成功するまで試行
+                clicked_create = False
+                if button:
+                    clicked_create = await retry_click(button)
+                    if clicked_create:
+                        Actor.log.info("Clicked Create button")
+
+                if not clicked_create:
+                    Actor.log.info("Create click did not succeed – attempting to close the dialog via X icon")
+                    close_selectors_create = [
+                        'button[data-close-modal="true"]',
+                        'svg[data-close-modal="true"]',
+                        'button:has(svg[data-close-modal="true"])',
+                        'button:has(svg path[d*="M12.428"])'
+                    ]
+                    close_btn_create = None
+                    for sel in close_selectors_create:
+                        try:
+                            close_btn_create = await page.query_selector(sel)
+                            if close_btn_create:
+                                break
+                        except Exception:
+                            pass
+
+                    if close_btn_create:
+                        await retry_click(close_btn_create)
+                        Actor.log.info("Closed Studio dialog via X icon")
+
+                # Wait until dialog disappears before proceeding
+                try:
+                    await page.wait_for_selector('div[role="dialog"]', state='detached', timeout=20000)
+                except Exception:
+                    pass
+
                 await page.wait_for_timeout(delay)
             
             # Special case for Upload an image (direct button)
@@ -622,7 +557,9 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                 upload_selectors = [
                     'button:has-text("Upload an image")',
                     'a:has-text("Upload an image")',
-                    'div[role="button"]:has-text("Upload an image")'
+                    'div[role="button"]:has-text("Upload an image")',
+                    'button.sc-jmfXTE',
+                    'button[class*="Upload"]'
                 ]
                 for selector in upload_selectors:
                     try:
@@ -649,6 +586,11 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                     # wait for network idle indicating upload done
                     try:
                         await page.wait_for_load_state('networkidle', timeout=10000)
+                    except Exception:
+                        pass
+                    # Wait until the Studio dialog disappears (modal closes)
+                    try:
+                        await page.wait_for_selector('div[role="dialog"]', state='detached', timeout=15000)
                     except Exception:
                         pass
                     await page.screenshot(path="after_direct_upload.png")
@@ -759,6 +701,158 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                     Actor.log.warning(f'Error clicking Generate 3D: {str(g3_err)}')
 
                 await page.screenshot(path="after_options_button.png")
+                continue
+            
+            # -------------------------------------------------------------
+            # Custom flow: generate image from prompt instead of uploading
+            # -------------------------------------------------------------
+            elif button_text == "prompt_generate":
+                if not prompt_text:
+                    Actor.log.warning("Prompt text not provided – skipping prompt_generate step")
+                    continue
+
+                Actor.log.info("Starting prompt-based image generation workflow")
+
+                # Bring window to front just in case
+                await force_window_activation(page)
+
+                # Locate textarea for prompt input
+                textarea_selectors = [
+                    'textarea[placeholder="What are you creating?"]',
+                    'textarea.sc-faSwKo',
+                    'textarea'
+                ]
+                textarea = None
+                for sel in textarea_selectors:
+                    try:
+                        textarea = await page.wait_for_selector(sel, timeout=10000)
+                        if textarea:
+                            Actor.log.info(f"Found textarea via selector: {sel}")
+                            break
+                    except Exception:
+                        pass
+
+                if not textarea:
+                    Actor.log.error("Prompt textarea not found. Aborting this step.")
+                    continue
+
+                # Fill the prompt text
+                try:
+                    await textarea.fill(prompt_text)
+                    Actor.log.info(f"Filled prompt textarea with: {prompt_text}")
+                except Exception as fill_err:
+                    Actor.log.error(f"Failed to fill prompt textarea: {fill_err}")
+                    continue
+
+                # Locate and click the Generate button
+                generate_btn = None
+                for sel in [
+                    'button:has-text("Generate")',
+                    'button.sc-jmfXTE.sc-CqDOO',
+                    'button.sc-jmfXTE'
+                ]:
+                    try:
+                        generate_btn = await page.query_selector(sel)
+                        if generate_btn:
+                            Actor.log.info(f"Found Generate button via selector: {sel}")
+                            break
+                    except Exception:
+                        pass
+
+                if not generate_btn:
+                    Actor.log.error("Generate button not found – skipping")
+                    continue
+
+                await retry_click(generate_btn)
+                Actor.log.info("Clicked Generate button – waiting for image generation")
+
+                # Wait for generation – the Add button appears when ready
+                add_btn = None
+                try:
+                    add_btn = await page.wait_for_selector('button:has-text("Add")', timeout=180000)
+                    Actor.log.info("Add button appeared – generation complete")
+                except Exception as wait_err:
+                    Actor.log.error(f"Timed-out waiting for Add button: {wait_err}")
+
+                if add_btn:
+                    await retry_click(add_btn)
+                    Actor.log.info("Clicked Add button to insert generated image")
+                else:
+                    continue  # Cannot proceed without image
+
+                # Close the generation modal via the X close button
+                close_btn = None
+                close_selectors = [
+                    'button[data-state="open"]',
+                    'button.hynoDj',
+                    'button:has(svg path[d*="M12.428"])',
+                    'button:has(svg)'  # fallback
+                ]
+                for sel in close_selectors:
+                    try:
+                        close_btn = await page.query_selector(sel)
+                        if close_btn:
+                            Actor.log.info(f"Found close button via selector: {sel}")
+                            break
+                    except Exception:
+                        pass
+
+                if close_btn:
+                    click_ok = await retry_click(close_btn)
+                    if not click_ok:
+                        Actor.log.warning("Close button click unsuccessful")
+                    else:
+                        # Wait until the button is detached/removed from DOM (modal actually closed)
+                        try:
+                            await page.wait_for_function(
+                                "(el) => !document.body.contains(el)",
+                                arg=close_btn,
+                                timeout=1000
+                            )
+                            Actor.log.info("Modal close confirmed (close button disappeared)")
+                        except Exception:
+                            # If still present, try one more click and wait again
+                            Actor.log.warning("Close button still present after initial click – retrying once")
+                            try:
+                                await retry_click(close_btn)
+                                await page.wait_for_function(
+                                    "(el) => !document.body.contains(el)",
+                                    arg=close_btn,
+                                    timeout=2000
+                                )
+                                Actor.log.info("Modal close confirmed after second attempt")
+                            except Exception as confirm_err:
+                                Actor.log.error(f"Failed to confirm modal close: {confirm_err}")
+
+                        # After close confirmed (or attempted), allow max 5 s for overlay to disappear
+                        try:
+                            await page.wait_for_function(
+                                "() => !document.querySelector('div.sc-bZZWma, div.sc-dXqfbs')",
+                                timeout=5000
+                            )
+                            Actor.log.info("Overlay element disappeared within 5 s")
+                        except Exception:
+                            pass  # Either timeout or script error – we'll neutralize manually next
+
+                        # Always neutralize any remaining overlay to ensure clicks pass through
+                        try:
+                            await page.evaluate("""
+                            () => {
+                                const overlays = document.querySelectorAll('div.sc-bZZWma, div.sc-dXqfbs');
+                                overlays.forEach(ov => {
+                                    ov.style.pointerEvents = 'none';
+                                    ov.style.opacity = '0';
+                                });
+                            }
+                            """)
+                            Actor.log.info("Any remaining overlay disabled (pointer-events:none)")
+                        except Exception:
+                            pass
+                else:
+                    Actor.log.warning("Close button not found – modal might remain open")
+
+                # Wait a bit for UI to settle
+                await page.wait_for_timeout(delay)
                 continue
             
             else:
@@ -1149,23 +1243,32 @@ async def main() -> None:
             if args.imageUrl:
                 actor_input['imageUrl'] = args.imageUrl
                 logger.info(f"Using image URL from command line: {args.imageUrl}")
+            if args.prompt:
+                actor_input['prompt'] = args.prompt
+                logger.info(f"Using prompt from command line: {args.prompt}")
             
             logger.info(f"Input configuration: {json.dumps(actor_input, indent=2)}")
             
             if not actor_input.get('imageUrl') and not os.environ.get('UPLOAD_IMAGE_PATH'):
                 logger.info("No image URL specified, will use sample image")
             
-            # Prepare the image for upload
+            # Determine if we are using prompt + image flow
+            prompt_text = actor_input.get('prompt')
+
+            # Always prepare an image for upload (leg.png prioritized in helper)
             upload_path, original_filename = await _prepare_image_for_upload(actor_input)
+            if prompt_text:
+                logger.info(f"Prompt provided – will adjust uploaded image using prompt: {prompt_text}")
             logger.info(f"Will use image: {upload_path} (original name: {original_filename})")
             
-            # 画像が存在することを確認
-            if os.path.exists(upload_path):
-                logger.info(f"Confirmed image exists at: {upload_path}, size: {os.path.getsize(upload_path)} bytes")
-            else:
-                logger.error(f"Image file does not exist at: {upload_path}. This is a critical error.")
-                await actor.fail()
-                return
+            # 画像が存在することを確認（prompt モードではスキップ）
+            if upload_path:
+                if os.path.exists(upload_path):
+                    logger.info(f"Confirmed image exists at: {upload_path}, size: {os.path.getsize(upload_path)} bytes")
+                else:
+                    logger.error(f"Image file does not exist at: {upload_path}. This is a critical error.")
+                    await actor.fail()
+                    return
             
             # Check Vizcom credentials
             email = os.environ.get('VISCOM_USER')
@@ -1178,7 +1281,10 @@ async def main() -> None:
             target_url = 'https://app.vizcom.ai/auth'
             
             logger.info(f'Launching browser to access {target_url}')
+            # Decide headless/headed mode
             headless = actor.config.headless
+            if args.headed:
+                headless = False
             logger.info(f'Browser headless mode: {headless}')
 
             # 結果を保存するための辞書を初期化
@@ -1188,7 +1294,7 @@ async def main() -> None:
             async with async_playwright() as playwright:
                 # Try Firefox instead of Chromium for better compatibility
                 browser = await playwright.firefox.launch(
-                    headless=actor.config.headless,  # Use Actor config for headless mode
+                    headless=headless,
                     args=['--start-maximized', '--disable-dev-shm-usage']  # Additional arguments for stability
                 )
                 
@@ -1303,7 +1409,7 @@ async def main() -> None:
                         if login_success or 'auth' not in page.url:
                             Actor.log.info(f'After login, current URL: {page.url}')
                             # Start clicking the sequence of buttons with our prepared image
-                            result_data = await perform_button_sequence(page, upload_path, original_filename)
+                            result_data = await perform_button_sequence(page, upload_path, original_filename, prompt_text)
                         else:
                             Actor.log.error('Could not complete the login process.')
                 
