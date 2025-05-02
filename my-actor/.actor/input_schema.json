@@ -1,23 +1,26 @@
 {
-    "title": "Python Playwright Scraper",
+    "title": "Vizcom 3D Generator",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
-        "start_urls": {
-            "title": "Start URLs",
-            "type": "array",
-            "description": "URLs to start with",
-            "prefill": [
-                { "url": "https://apify.com" }
-            ],
-            "editor": "requestListSources"
+        "imageUrl": {
+            "title": "Image URL (optional)",
+            "type": "string",
+            "description": "Direct URL to an image to upload instead of the bundled leg.png.",
+            "editor": "textfield"
         },
-        "max_depth": {
-            "title": "Maximum depth",
-            "type": "integer",
-            "description": "Depth to which to scrape to",
-            "default": 1
+        "prompt": {
+            "title": "Prompt (optional)",
+            "type": "string",
+            "description": "Prompt text used to adjust or generate the image in Vizcom.",
+            "editor": "textfield"
+        },
+        "headed": {
+            "title": "Run Headed (debug)",
+            "type": "boolean",
+            "description": "If true, the browser will run in headed mode for local debugging.",
+            "default": false
         }
     },
-    "required": ["start_urls"]
+    "required": []
 }
