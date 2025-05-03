@@ -122,6 +122,12 @@ curl -X POST \
 - Coordinating multiple agentic frameworks (Apify, MCP) in a single product
 - UX matters even for medical-device tooling—​the dropdown style picker was user-tested with real prosthesis wearers
 
+## Sample generated models
+
+![Generated color variants](assets/color_variants.png)
+
+<sub>Four color-way examples</sub>
+
 ## Roadmap
 - Expand beyond legs: arms, feet, and limb covers
 - Add live 3-D preview in the web UI (three.js)
