@@ -3,6 +3,7 @@
 ![Prosthetic Design Cover](assets/prosthetic_design_cover.png)
 
 [![View on Devpost](https://img.shields.io/badge/Devpost-Project%20Page-blue?logo=devpost)](https://devpost.com/software/t-e5rljs)
+🏆 **Winner of the Vizcom: Visual Intelligence Award** at the [MCP and A2A Hackathon - AWS Edition](https://lu.ma/vibecode?tk=V8VB1G)
 
 Personalized prosthetics, powered by style. Design a prosthetic leg that feels like **you**.
 
