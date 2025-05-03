@@ -2,6 +2,8 @@
 
 ![Prosthetic Design Cover](assets/prosthetic_design_cover.png)
 
+[![View on Devpost](https://img.shields.io/badge/Devpost-Project%20Page-blue?logo=devpost)](https://devpost.com/software/t-e5rljs)
+
 Personalized prosthetics, powered by style. Design a prosthetic leg that feels like **you**.
 
 ---
@@ -23,6 +25,10 @@ The **Prosthetic Design** web application lets users select stylistic preference
 │ (Next.js)   │  prompt   │  (Playwright)│  .glb/.stl │  (TypeScript) │  email   │ Manufacturer    │
 └─────────────┘            └──────────────┘            └───────────────┘            └────────────────┘
 ```
+
+## System architecture
+
+![System architecture](assets/system_architecture.png)
 
 ## Tech stack
 - **Python** + **Playwright** + **Apify SDK** for browser automation
