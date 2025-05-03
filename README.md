@@ -110,7 +110,6 @@ curl -X POST \
 ## Challenges
 - **No Vizcom API** – we reverse-engineered the UI and built resilient Playwright selectors with retry logic.
 - **Headless browser quirks** – WebGL and dynamic React components required multiple workarounds.
-- **File-transfer pipeline** – Getting the large `STL/GLB` files from Vizcom to the manufacturer securely took several iterations.
 
 ## Accomplishments
 - Fully automated Vizcom generation flow with zero manual clicks
@@ -120,7 +119,6 @@ curl -X POST \
 ## What we learned
 - Deep dive into Apify's Python SDK and storage primitives
 - Coordinating multiple agentic frameworks (Apify, MCP) in a single product
-- UX matters even for medical-device tooling—​the dropdown style picker was user-tested with real prosthesis wearers
 
 ## Sample generated models
 
@@ -130,7 +128,7 @@ curl -X POST \
 
 ## Roadmap
 - Expand beyond legs: arms, feet, and limb covers
-- Add live 3-D preview in the web UI (three.js)
+- ✅ Add live 3-D preview in the web UI (three.js)
 - Integrate pricing & order-tracking APIs from manufacturers
 
 ## License
