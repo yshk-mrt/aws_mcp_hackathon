@@ -17,7 +17,7 @@ from typing import Tuple, Optional
 from apify import Actor
 from playwright.async_api import async_playwright, Page, ElementHandle
 
-# コマンドライン引数をパースする関数
+# Function to parse command line arguments
 def parse_args():
     parser = argparse.ArgumentParser(description='Vizcom AI 3D model generator')
     parser.add_argument('--imageUrl', help='URL of the image to process')
@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument('--headed', action='store_true', help='Run browser in headed (non-headless) mode')
     return parser.parse_args()
 
-# セットアップロギング
+# Setup logging
 def setup_logging(debug=False):
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(
@@ -91,7 +91,7 @@ async def _prepare_image_for_upload(actor_input: dict = None) -> Tuple[str, str]
                 
             Actor.log.info(f"Downloaded image saved to: {save_path} (size: {os.path.getsize(save_path)} bytes)")
             
-            # 画像が実際に存在することを確認
+            # Verify that the image actually exists
             if os.path.exists(save_path) and os.path.getsize(save_path) > 0:
                 Actor.log.info(f"Download successful: {save_path}")
                 return save_path, original_filename
@@ -141,19 +141,19 @@ _SAMPLE_IMAGE_PATH = _ensure_sample_image()
 async def force_window_activation(page: Page, maximize: bool = False, flash_maximize: bool = False):
     """
     Force browser window activation using gentle methods.
-    maximize: ウィンドウを最大化する
-    flash_maximize: 一瞬最大化してから元に戻す（UI再描画のため）
+    maximize: Maximize the window
+    flash_maximize: Temporarily maximize and restore window (to refresh UI)
     """
     try:
-        # ウィンドウフォーカス
+        # Force window focus
         await page.evaluate("""
         window.focus();
         """)
         
-        # マウスの移動でフォーカスを促す
+        # Move mouse to encourage focus
         await page.mouse.move(100, 100)
         
-        # 画面サイズを取得・保存
+        # Get and save screen dimensions
         if flash_maximize:
             original_size = await page.evaluate("""
             () => {
@@ -166,7 +166,7 @@ async def force_window_activation(page: Page, maximize: bool = False, flash_maxi
             }
             """)
             
-            # 一瞬最大化
+            # Temporarily maximize window
             await page.evaluate("""
             () => {
                 window.moveTo(0, 0);
@@ -175,10 +175,10 @@ async def force_window_activation(page: Page, maximize: bool = False, flash_maxi
             }
             """)
             
-            # 少し待つ
+            # Wait a moment
             await page.wait_for_timeout(500)
             
-            # 元のサイズに戻す
+            # Restore original size
             await page.evaluate("""
             (size) => {
                 window.resizeTo(size.width, size.height);
@@ -189,7 +189,7 @@ async def force_window_activation(page: Page, maximize: bool = False, flash_maxi
             
             Actor.log.info("Window flash-maximized to refresh UI")
         
-        # 必要に応じてウィンドウを最大化
+        # Maximize window if needed
         elif maximize:
             await page.evaluate("""
             if (window.screen && window.outerHeight < window.screen.height) {
@@ -208,7 +208,7 @@ async def retry_click(element: ElementHandle, page: Page = None, selector: str =
     """
     Retry clicking an element with multiple methods if needed.
     """
-    # 文字列の場合は、要素を再取得
+    # If element is a string, re-acquire the element
     if isinstance(element, str) and page and selector:
         try:
             Actor.log.info(f"Element was string, trying to get element with selector: {selector}")
@@ -269,10 +269,10 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
     Returns:
         Dictionary containing results such as exported_stl_path
     """
-    # 初期活性化
+    # Initial window activation
     await force_window_activation(page)
     
-    # 結果を格納する辞書を初期化
+    # Initialize dictionary to store results
     result_data = {}
     
     # Define the sequence of actions. If a prompt is provided, we replace the
@@ -302,21 +302,21 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
         try:
             Actor.log.info(f'Looking for button: "{button_text}"')
             
-            # plus_buttonの場合は特別な処理
+            # Special handling for plus_button
             if button_text == "plus_button":
                 if flash_maximize:
-                    # プラスボタン検出前に一瞬最大化して画面をリフレッシュ
+                    # Flash maximize to refresh screen before detecting plus button
                     await force_window_activation(page, flash_maximize=True)
             else:
                 await force_window_activation(page)
             
-            # ページが完全にロードされるのを待つ
+            # Wait for page to fully load
             try:
                 await page.wait_for_load_state('networkidle', timeout=5000)
             except Exception as e:
                 Actor.log.warning(f'Network did not become idle: {str(e)}')
             
-            # スクリーンショットを撮って現在の状態を確認
+            # Take screenshot to verify current state
             await page.screenshot(path=f"before_finding_{button_text.replace(' ', '_')}.png")
             
             # Try different ways to find the button
@@ -326,15 +326,15 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
             if button_text == "Start in Studio":
                 Actor.log.info('Using improved detection for "Start in Studio" button')
                 
-                # 一瞬最大化してUIをリフレッシュ
+                # Flash maximize to refresh UI
                 await force_window_activation(page, flash_maximize=True)
                 
-                # ページ全体の内容をデバッグ
+                # Debug full page content
                 page_content = await page.content()
                 with open("page_after_new_file.html", "w", encoding="utf-8") as f:
                     f.write(page_content)
                 
-                # ページ上のすべてのテキストを取得
+                # Get all text elements on the page
                 all_text_elements = await page.query_selector_all('h1, h2, h3, h4, h5, h6, p, span, div, button, a')
                 texts = []
                 for el in all_text_elements:
@@ -347,7 +347,7 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                 
                 Actor.log.info(f'Found {len(texts)} text elements on page')
                 
-                # 正確に"Start in Studio"というテキストを持つ要素を探す
+                # Find elements with exact "Start in Studio" text
                 exact_matches = []
                 for el, text in texts:
                     if text == "Start in Studio":
@@ -364,7 +364,7 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                 # なければ"Start in Studio"を含む要素を探す
                 if not button:
                     for el, text in texts:
-                        if "Start in Studio" in text and len(text) < 30:  # 短いテキストのみ（長い複合テキストは避ける）
+                        if "Start in Studio" in text and len(text) < 30:  # Short text only (avoid long composite text)
                             Actor.log.info(f'Found element containing "Start in Studio": "{text}"')
                             button = el
                             break
@@ -373,7 +373,7 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                 if not button:
                     click_result = await page.evaluate("""
                     () => {
-                        // 正確な「Start in Studio」テキストを持つ要素を探す
+                        // Find elements with exact "Start in Studio" text
                         const findExactText = (selector, text) => {
                             const elements = Array.from(document.querySelectorAll(selector));
                             return elements.find(el => el.textContent.trim() === text);
@@ -403,7 +403,7 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                             return `Clicked first card element`;
                         }
                         
-                        // 最後の手段：画像の直下にあるボタンやテキスト
+                        // Last resort: buttons or text directly below an image
                         const images = document.querySelectorAll('img');
                         for (const img of images) {
                             const parent = img.parentElement;
@@ -466,7 +466,7 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                 await force_window_activation(page, flash_maximize=True)
                 await page.wait_for_timeout(1000)
                 
-                # まず正確なテキストで検索
+                # First search for exact text
                 create_selectors = [
                     'button:text("Create")',
                     'button:text("CREATE")', 
@@ -895,7 +895,7 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
             # Click the button using our retry function
             Actor.log.info(f'Attempting to click "{button_text}"')
             
-            # 特別な処理: plus_buttonの場合は追加情報を渡す
+            # Special handling: pass additional info for plus_button
             if button_text == "plus_button":
                 selector = 'button[class*="hynoDj"], button[data-state="closed"]'
                 click_success = await retry_click(button, page, selector)
@@ -916,7 +916,7 @@ async def perform_button_sequence(page: Page, upload_path: str, original_filenam
                 await page.screenshot(path=f"after_second_click_{button_text.replace(' ', '_')}.png")
                 
                 if maximize_after:
-                    # ウィンドウを最大化して活性化
+                    # Maximize and activate window
                     await force_window_activation(page, maximize=True)
                     Actor.log.info('Window maximized after Start in Studio double-click')
             
@@ -1228,11 +1228,11 @@ async def _handle_generation_and_export(page: Page, original_filename: str):
 
 async def main() -> None:
     """Launch browser and login to Vizcom.ai."""
-    # コマンドライン引数をパース
+    # Parse command line arguments
     args = parse_args()
     
-    # セットアップロギング
-    logger = setup_logging(args.debug or True)  # デバッグモードを強制的に有効化
+    # Setup logging
+    logger = setup_logging(args.debug or True)  # Force debug mode on
     logger.info("Starting Vizcom 3D generator")
     
     # Enter the context of the Actor.
@@ -1261,7 +1261,7 @@ async def main() -> None:
                 logger.info(f"Prompt provided – will adjust uploaded image using prompt: {prompt_text}")
             logger.info(f"Will use image: {upload_path} (original name: {original_filename})")
             
-            # 画像が存在することを確認（prompt モードではスキップ）
+            # Verify image exists (skip in prompt mode)
             if upload_path:
                 if os.path.exists(upload_path):
                     logger.info(f"Confirmed image exists at: {upload_path}, size: {os.path.getsize(upload_path)} bytes")
@@ -1386,7 +1386,7 @@ async def main() -> None:
                                     Actor.log.info('Login seems successful')
                                     login_success = True
                                 else:
-                                    # まだ認証ページにいる場合は手動ログイン時間を与える
+                                    # Still on auth page - give time for manual login
                                     Actor.log.info('Still on auth page - please login manually within 60 seconds')
                                     await page.screenshot(path="manual_login.png")
                                     await page.wait_for_timeout(60000)
