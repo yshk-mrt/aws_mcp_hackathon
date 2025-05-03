@@ -1,3 +1,7 @@
+# Prosthetic Design – Apify Actor
+
+*This README describes the Playwright automation located in `my-actor/`. For the full project overview, philosophy, setup, and roadmap, see the top-level [README](../README.md).*  
+
 ## Python Playwright template
 
 ## Included features
