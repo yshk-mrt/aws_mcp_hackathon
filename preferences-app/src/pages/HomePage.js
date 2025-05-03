@@ -35,7 +35,7 @@ import { generateProstheticModel, formatPromptForApify } from '../services/apify
 import { sendModelUrlEmail } from '../services/arcadeService';
 
 // Directly define the API key here (same as in geminiService.js)
-const API_KEY = "AIzaSyAHDO4oG-KLMB_iw6wftNslEr6kARJ51T8";
+const API_KEY = "GEMINI_API_KEY";
 
 // Email configuration
 const SENDER_EMAIL = "sarvidebate@gmail.com";
@@ -168,6 +168,10 @@ function HomePage() {
   const [isTestingEmail, setIsTestingEmail] = useState(false);
   const [testEmailDialogOpen, setTestEmailDialogOpen] = useState(false);
   
+  // Add state for editable description
+  const [editableDescription, setEditableDescription] = useState('');
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  
   // Steps for the generation process
   const steps = [
     'Generate Description',
@@ -295,6 +299,7 @@ function HomePage() {
       setIsLoading(true);
       setError('');
       setGeneratedDescription('');
+      setEditableDescription(''); // Reset editable description
       setPromptText('');
       setActiveStep(0);
 
@@ -324,6 +329,7 @@ function HomePage() {
         // Set successful response
         setPromptText(result.prompt);
         setGeneratedDescription(result.description);
+        setEditableDescription(result.description); // Initialize editable description
         
         // Save the description to localStorage for the email functionality
         localStorage.setItem('prostheticModelDescription', result.description);
@@ -344,6 +350,29 @@ function HomePage() {
     }
   };
   
+  // Handle editing the description
+  const handleEditDescription = () => {
+    setIsEditingDescription(true);
+  };
+  
+  // Handle saving the edited description
+  const handleSaveDescription = () => {
+    setGeneratedDescription(editableDescription);
+    localStorage.setItem('prostheticModelDescription', editableDescription);
+    setIsEditingDescription(false);
+  };
+  
+  // Handle canceling the edit
+  const handleCancelEdit = () => {
+    setEditableDescription(generatedDescription);
+    setIsEditingDescription(false);
+  };
+  
+  // Handle description text change
+  const handleDescriptionChange = (event) => {
+    setEditableDescription(event.target.value);
+  };
+
   // Handle generating the 3D model
   const handleGenerate3DModel = async () => {
     if (!generatedDescription) {
@@ -357,12 +386,13 @@ function HomePage() {
       setModelGenerationStatus('Preparing prompt for 3D model generation...');
       setError('');
       
-      // Format the Gemini description into a shorter prompt for Apify
+      // Use the potentially edited description
       const formattedPrompt = formatPromptForApify(generatedDescription);
       console.log("Formatted prompt for Apify:", formattedPrompt);
       
-      // Save the prompt to localStorage
+      // Save both the original description and formatted prompt to localStorage
       localStorage.setItem('prostheticModelPrompt', formattedPrompt);
+      localStorage.setItem('prostheticModelDescription', generatedDescription);
       
       setModelGenerationStatus('Generating 3D model (this may take a minute)...');
       
@@ -975,46 +1005,130 @@ function HomePage() {
                 {/* Description Section */}
                 {generatedDescription && (
                   <>
-                    <Typography variant="h6" component="h2" gutterBottom sx={{ 
-                      color: '#ffffff',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                      paddingBottom: '8px',
-                      position: 'relative',
-                      pl: 2,
-                      '&:before': {
-                        content: '""',
-                        position: 'absolute',
-                        left: 0,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        height: '80%',
-                        width: '4px',
-                        backgroundColor: '#ff5a3c',
-                        borderRadius: '4px'
-                      }
-                    }}>
-                      Prosthetic Design Description
-                    </Typography>
-                    <Box sx={{ 
-                      p: 2, 
-                      backgroundColor: 'rgba(18, 18, 18, 0.7)', 
-                      borderRadius: 1,
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
-                    }}>
-                      <Typography 
-                        variant="body1" 
-                        component="div" 
-                        style={{ 
-                          whiteSpace: 'pre-line',
-                          color: '#ffffff',
-                          lineHeight: '1.6',
-                          textShadow: '0 0 1px rgba(255, 255, 255, 0.1)' // Subtle text shadow for better readability
-                        }}
-                      >
-                        {generatedDescription}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="h6" component="h2" gutterBottom sx={{ 
+                        color: '#ffffff',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                        paddingBottom: '8px',
+                        position: 'relative',
+                        pl: 2,
+                        flex: 1,
+                        '&:before': {
+                          content: '""',
+                          position: 'absolute',
+                          left: 0,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          height: '80%',
+                          width: '4px',
+                          backgroundColor: '#ff5a3c',
+                          borderRadius: '4px'
+                        }
+                      }}>
+                        Prosthetic Design Description
                       </Typography>
+                      
+                      {!isEditingDescription ? (
+                        <Button 
+                          variant="outlined" 
+                          size="small" 
+                          onClick={handleEditDescription}
+                          sx={{ 
+                            ml: 2,
+                            borderColor: 'rgba(255, 90, 60, 0.5)',
+                            color: '#ff7c5c',
+                            '&:hover': {
+                              borderColor: '#ff5a3c',
+                              backgroundColor: 'rgba(255, 90, 60, 0.05)'
+                            }
+                          }}
+                        >
+                          Edit Description
+                        </Button>
+                      ) : (
+                        <Box>
+                          <Button 
+                            variant="contained" 
+                            size="small" 
+                            onClick={handleSaveDescription}
+                            sx={{ 
+                              mr: 1,
+                              backgroundColor: 'rgba(46, 125, 50, 0.8)',
+                              '&:hover': {
+                                backgroundColor: 'rgba(46, 125, 50, 1)',
+                              }
+                            }}
+                          >
+                            Save
+                          </Button>
+                          <Button 
+                            variant="outlined" 
+                            size="small" 
+                            onClick={handleCancelEdit}
+                            sx={{ 
+                              borderColor: 'rgba(255, 255, 255, 0.3)',
+                              color: '#ffffff',
+                              '&:hover': {
+                                borderColor: '#ffffff',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)'
+                              }
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </Box>
+                      )}
                     </Box>
+                    
+                    {!isEditingDescription ? (
+                      <Box sx={{ 
+                        p: 2, 
+                        backgroundColor: 'rgba(18, 18, 18, 0.7)', 
+                        borderRadius: 1,
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}>
+                        <Typography 
+                          variant="body1" 
+                          component="div" 
+                          style={{ 
+                            whiteSpace: 'pre-line',
+                            color: '#ffffff',
+                            lineHeight: '1.6',
+                            textShadow: '0 0 1px rgba(255, 255, 255, 0.1)'
+                          }}
+                        >
+                          {generatedDescription}
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <TextField
+                        multiline
+                        fullWidth
+                        minRows={6}
+                        maxRows={12}
+                        value={editableDescription}
+                        onChange={handleDescriptionChange}
+                        variant="outlined"
+                        sx={{
+                          mb: 2,
+                          mt: 1,
+                          '& .MuiOutlinedInput-root': {
+                            color: '#ffffff',
+                            backgroundColor: 'rgba(18, 18, 18, 0.7)',
+                            '& fieldset': {
+                              borderColor: 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'rgba(255, 90, 60, 0.5)',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#ff5a3c',
+                            },
+                          }
+                        }}
+                      />
+                    )}
                     
                     {isGenerating3DModel && (
                       <Box sx={{ 

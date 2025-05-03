@@ -3,7 +3,7 @@
  */
 
 // The Arcade API key
-const ARCADE_API_KEY = "arc_o1Rmi1fyTp1Scsar3utmtCUx6JyHnZZq7bw6SSSxU3bmZt2zRtDw";
+const ARCADE_API_KEY = "ARCADE_API_KEY";
 const SENDER_EMAIL = "sarvidebate@gmail.com";
 const RECIPIENT_EMAIL = "goyalsarvagya@gmail.com";
 

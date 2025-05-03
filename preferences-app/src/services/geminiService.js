@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Directly define the API key here
-const API_KEY = "AIzaSyAHDO4oG-KLMB_iw6wftNslEr6kARJ51T8";
+const API_KEY = "GEMINI_API_KEY";
 
 /**
  * Validates the Gemini API key by making a simple request
@@ -92,7 +92,24 @@ export const generateProstheticDescription = async (preferences) => {
     }
 
     // Create the prompt
-    const prompt = `Based on these preferences, create a description for how Vizcom should edit a preexisting prosthetic leg to look like with these style changes:\n${preferencesText}`;
+    const prompt = `Given the following product design attributes, write a single sentence where each attribute is clearly stated using the format: "make the [attribute] [value]." The sentence should include all of the following:
+
+Primary Color: green
+
+Accent Color: gold
+
+Design Style: futuristic
+
+Texture/Finish: matte
+
+Personalization: monogram
+
+Material Look: carbon-fiber
+
+The output should follow this exact structure:
+"make the primary color [value]. make the accent color [value]. make the design style [value]. make the texture/finish [value]. make the personalization [value]. make the material look [value]."
+
+Do not include any explanation or additional text—only the final sentence in the specified structure.\n${preferencesText}`;
     
     console.log("Sending prompt to Gemini 2.0 Flash:", prompt);
 
@@ -111,7 +128,11 @@ export const generateProstheticDescription = async (preferences) => {
     const response = await result.response;
     const responseText = response.text();
     
-    console.log("Received response from Gemini:", responseText.substring(0, 50) + "...");
+    console.log("==========================================");
+    console.log("Full response from Gemini:");
+    console.log(responseText);
+    console.log("Response length:", responseText.length, "characters");
+    console.log("==========================================");
     
     // Return both the prompt and the response
     return {

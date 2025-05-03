@@ -3,7 +3,7 @@
  */
 
 // The Apify API token
-const API_TOKEN = "apify_api_lKorE3ryDFn1jJsYjAgMvy6jkEWhNE4p8xEq";
+const API_TOKEN = "APIFY_TOKEK";
 
 /**
  * Generates a 3D model using the Apify API based on a text prompt
@@ -12,7 +12,11 @@ const API_TOKEN = "apify_api_lKorE3ryDFn1jJsYjAgMvy6jkEWhNE4p8xEq";
  */
 export const generateProstheticModel = async (prompt) => {
   try {
-    console.log("Generating 3D model with prompt:", prompt);
+    console.log("==========================================");
+    console.log("Generating 3D model with raw prompt:");
+    console.log(prompt);
+    console.log("Prompt length:", prompt.length, "characters");
+    console.log("==========================================");
     
     // Prepare the request payload
     const payload = {
@@ -20,7 +24,14 @@ export const generateProstheticModel = async (prompt) => {
       headed: false
     };
     
-    console.log("Request payload:", JSON.stringify(payload));
+    // Log the payload as a formatted JSON string for better inspection
+    console.log("Request payload as JSON:");
+    console.log(JSON.stringify(payload, null, 2));
+    
+    // Log the payload stringified as it will be sent
+    const payloadString = JSON.stringify(payload);
+    console.log("Request payload string length:", payloadString.length, "characters");
+    console.log("==========================================");
     
     // Prepare the request
     const response = await fetch(
@@ -30,7 +41,7 @@ export const generateProstheticModel = async (prompt) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
+        body: payloadString,
       }
     );
 
@@ -92,27 +103,34 @@ export const generateProstheticModel = async (prompt) => {
 };
 
 /**
- * Formats a Gemini description into a shorter prompt suitable for the Apify 3D model generation
+ * Formats a Gemini description into a prompt suitable for the Apify 3D model generation
  * @param {string} description - The detailed description from Gemini
- * @returns {string} - A shorter, more focused prompt for the 3D model generation
+ * @returns {string} - A properly formatted prompt for the 3D model generation
  */
 export const formatPromptForApify = (description) => {
-  // Extract the most important parts from the description
-  // Focus on colors, style, and material features
-  
-  // If description is too long, create a shorter version
-  if (description.length > 100) {
-    // Extract first sentence or paragraph
-    const firstSentence = description.split(/\.|\n/)[0];
-    
-    // Clean up any markdown or extra formatting
-    const cleanPrompt = firstSentence
-      .replace(/[*_#]/g, '')  // Remove markdown formatting
-      .replace(/\s+/g, ' ')   // Normalize whitespace
-      .trim();
-    
-    return cleanPrompt + ", prosthetic leg";
+  if (!description) {
+    return "Generate a modern and sleek prosthetic leg";
   }
   
-  return description + ", prosthetic leg";
+  // Clean up the description
+  let cleanDescription = description
+    .replace(/\n+/g, ' ') // Replace multiple newlines with spaces
+    .replace(/\s+/g, ' ') // Normalize all whitespace
+    .trim();
+  
+  // Get the full description (don't truncate)
+  let prompt = cleanDescription;
+  
+  // Ensure the prompt specifies it's for a prosthetic leg
+  if (!prompt.toLowerCase().includes('prosthetic leg')) {
+    prompt += ", prosthetic leg";
+  }
+  
+  // Add emphasis on 3D model
+  prompt += ". Create a realistic 3D model.";
+  
+  // Log the full prompt for debugging
+  console.log("Full formatted prompt for Apify:", prompt);
+  
+  return prompt;
 }; 

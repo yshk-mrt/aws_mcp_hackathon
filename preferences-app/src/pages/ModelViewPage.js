@@ -1,7 +1,7 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Container, Typography, Box, CircularProgress, Button, Paper, ThemeProvider, createTheme, Alert, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, useGLTF } from '@react-three/drei';
+import { OrbitControls, useGLTF, Environment, Center, Stage } from '@react-three/drei';
 import { sendModelUrlEmail } from '../services/arcadeService';
 
 // Dark theme with orange accents matching HomePage
@@ -86,23 +86,47 @@ function ModelLoader() {
 function Model({ modelUrl }) {
   const { scene } = useGLTF(modelUrl);
   
-  // Just center the model without adding any effects
+  // Optimize model display
   useEffect(() => {
     if (scene) {
-      // Center the model
+      // Reset model transformations to ensure proper positioning
       scene.position.set(0, 0, 0);
+      scene.rotation.set(0, 0, 0);
       
-      // Reset any shadow or material settings
+      // Apply consistent material settings for all meshes
       scene.traverse((child) => {
         if (child.isMesh) {
+          // Disable shadows
           child.castShadow = false;
           child.receiveShadow = false;
+          
+          // Ensure materials have good defaults
+          if (child.material) {
+            // Keep original materials but ensure they're visible with current lighting
+            child.material.needsUpdate = true;
+            
+            // If material has transparency, ensure it's handled properly
+            if (child.material.transparent) {
+              child.material.alphaTest = 0.5;
+            }
+          }
         }
+      });
+      
+      // Log loaded model details for debugging
+      console.log("Model loaded successfully:", {
+        meshCount: scene.children.length,
+        materials: scene.children.filter(c => c.isMesh).map(m => m.material?.name || 'unknown')
       });
     }
   }, [scene]);
   
-  return <primitive object={scene} scale={1.2} position={[0, -0.5, 0]} />;
+  // Use Center component to automatically center the model in view
+  return (
+    <Center>
+      <primitive object={scene} />
+    </Center>
+  );
 }
 
 // Error boundary for the 3D content
@@ -348,7 +372,11 @@ function ModelViewPage() {
                     <Canvas 
                       ref={canvasRef}
                       camera={{ position: [0, 0, 4], fov: 45 }}
-                      shadows={false}
+                      gl={{ 
+                        antialias: true,
+                        alpha: false,
+                        preserveDrawingBuffer: true 
+                      }}
                       onError={(e) => {
                         console.error("Canvas error:", e);
                         setError("An error occurred with the 3D renderer. Please try refreshing the page.");
@@ -357,31 +385,30 @@ function ModelViewPage() {
                     >
                       <color attach="background" args={['#ffffff']} />
                       
-                      {/* Simple neutral lighting */}
-                      <ambientLight intensity={0.8} />
-                      <directionalLight 
-                        position={[5, 5, 5]} 
-                        intensity={0.7} 
-                        castShadow={false}
-                        color="#ffffff"
-                      />
-                      <directionalLight 
-                        position={[-5, 5, -5]} 
-                        intensity={0.5} 
-                        castShadow={false}
-                        color="#ffffff"
-                      />
+                      {/* Use Stage for consistent lighting and environment */}
+                      <Stage
+                        shadows={false}
+                        intensity={0.5}
+                        environment="studio"
+                        preset="rembrandt"
+                        adjustCamera={false}
+                      >
+                        <Suspense fallback={<ModelLoader />}>
+                          <Model modelUrl={modelUrl} />
+                        </Suspense>
+                      </Stage>
                       
-                      <Suspense fallback={<ModelLoader />}>
-                        <Model modelUrl={modelUrl} />
-                      </Suspense>
+                      {/* Add simple environment light for better visual quality */}
+                      <Environment preset="studio" />
                       
                       <OrbitControls 
+                        makeDefault
                         enableDamping={true}
                         dampingFactor={0.25}
                         rotateSpeed={0.5}
                         minDistance={2}
                         maxDistance={10}
+                        target={[0, 0, 0]}
                       />
                     </Canvas>
                   </ModelErrorBoundary>
