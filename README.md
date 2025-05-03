@@ -30,6 +30,12 @@ The **Prosthetic Design** web application lets users select stylistic preference
 
 ![System architecture](assets/system_architecture.png)
 
+### Vizcom automation demo
+
+![Vizcom automation](assets/vizcom-auto.gif)
+
+*The Apify Actor (agent) controls Vizcom headlessly via Playwright, performing all clicks, uploads, and exports without human intervention.*
+
 ## Tech stack
 - **Python** + **Playwright** + **Apify SDK** for browser automation
 - **Mastra MCP** for orchestration / agent framework
