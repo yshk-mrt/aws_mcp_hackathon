@@ -1,5 +1,7 @@
 # Prosthetic Design
 
+![Prosthetic Design Cover](assets/prosthetic_design_cover.png)
+
 Personalized prosthetics, powered by style. Design a prosthetic leg that feels like **you**.
 
 ---
