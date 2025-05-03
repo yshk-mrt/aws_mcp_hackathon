@@ -1,5 +1,6 @@
 .DS_Store
 main.py_bk
+preferences-app/node_modules
 main.py_bk_1stAPI
 after_Create.png
 after_direct_upload.png
