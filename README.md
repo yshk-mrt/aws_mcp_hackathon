@@ -1,78 +1,136 @@
-# Prosthetic Design Preferences App
+# Prosthetic Design
 
-A React application that allows users to select their preferences for prosthetic leg designs and generate a description using Gemini AI.
+![Prosthetic Design Cover](assets/prosthetic_design_cover.png)
 
-## Features
+[![View on Devpost](https://img.shields.io/badge/Devpost-Project%20Page-blue?logo=devpost)](https://devpost.com/software/t-e5rljs)
+🏆 **Winner of the Vizcom: Visual Intelligence Award** at the [MCP and A2A Hackathon - AWS Edition](https://lu.ma/vibecode?tk=V8VB1G)
 
-- Interactive dropdown menus for all preference categories:
-  - Color Preferences (Primary and Accent)
-  - Design Style
-  - Texture/Finish
-  - Personalization Elements
-  - Material Look
-- Integration with Google's Gemini AI to generate prosthetic design descriptions
-- Real-time summary of selected preferences
+Personalized prosthetics, powered by style. Design a prosthetic leg that feels like **you**.
 
-## Getting Started
+---
+
+## Inspiration
+Our inspiration came from a close friend who needed a prosthetic leg. He wanted something that made him feel happy and reflected his personality, but he struggled to find a company that offered full customization. That experience made us realize how limited the options are for personalized prosthetics, and we wanted to build something to change that.
+
+## What it does
+The **Prosthetic Design** web application lets users select stylistic preferences—​color schemes, patterns, textures, or themes—​through a simple dropdown interface. These preferences are used to generate a one-of-a-kind prosthetic leg design, which is then forwarded directly to a prosthetics manufacturer for production.
+
+## How it works
+1. **Vizcom automation** – Vizcom's design AI has no public API, so we built an `Apify` **Actor** (see `my-actor/src/main.py`) that drives Vizcom through a headless **Playwright** browser session. The Actor uploads a source image *or* a text-prompt, waits for Vizcom to generate a 3-D model, and automatically exports a `GLB`/`STL` file.
+2. **MCP orchestration** – Mastra **MCP** coordinates multiple agentic components, invoking the Apify Actor and post-processing the result.
+3. **Arcade.dev e-mail automation** – When a design is ready, an automated e-mail with the 3-D model attached is sent to the selected prosthetics manufacturer.
+
+```
+┌─────────────┐     1      ┌──────────────┐     2      ┌───────────────┐     3      ┌────────────────┐
+│   Frontend  │──────────▶│  Apify Actor │──────────▶│   MCP Flow    │──────────▶│  Arcade.dev     │
+│ (Next.js)   │  prompt   │  (Playwright)│  .glb/.stl │  (TypeScript) │  email   │ Manufacturer    │
+└─────────────┘            └──────────────┘            └───────────────┘            └────────────────┘
+```
+
+## System architecture
+
+![System architecture](assets/system_architecture.png)
+
+### Vizcom automation demo
+
+![Vizcom automation](assets/vizcom-auto.gif)
+
+*The Apify Actor (agent) controls Vizcom headlessly via Playwright, performing all clicks, uploads, and exports without human intervention.*
+
+## Tech stack
+- **Python** + **Playwright** + **Apify SDK** for browser automation
+- **Mastra MCP** for orchestration / agent framework
+- **Arcade.dev** for transactional e-mail
+- **Node.js / TypeScript / Next.js** for the web UI
+- **Vizcom** generative 3-D design engine
+
+## Repository structure
+```
+.
+├── README.md                ← you are here
+├── my-actor/                ← Apify Actor (Python + Playwright)
+│   ├── src/main.py          ← main automation script
+│   ├── requirements.txt     ← Python dependencies
+│   └── ...
+├── frontend/                ← (optional) Next.js web app — not included in this repo
+└── ...
+```
+
+## Getting started (local)
 
 ### Prerequisites
+- Python ≥ 3.10
+- Node.js ≥ 18 (if you plan to run the frontend)
+- [Apify CLI](https://docs.apify.com/cli) `npm i -g apify`
+- Playwright browsers: `python -m playwright install firefox`
 
-- Node.js and npm installed on your machine
-- Gemini API key from Google AI Studio
+### 1 · Clone & install
+```bash
+git clone https://github.com/your-org/prosthetic-design.git
+cd prosthetic-design/my-actor
+pip install -r requirements.txt
+```
 
-### Getting a Gemini API Key
+### 2 · Configure secrets
+Create a `.env` file (or export env-vars) with your Vizcom credentials:
+```dotenv
+VISCOM_USER=you@example.com
+VISCOM_PASSWORD=super-secret
+```
 
-1. Visit the Google AI Studio: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-2. Sign in with your Google account
-3. Create a new API key or use an existing one
-4. Copy the API key for use in the application
+### 3 · Run the Actor
+```bash
+# from the my-actor directory
+apify run --debug --headed  # headed mode helps when debugging the browser
+```
+The Actor will upload `leg.png` by default (or download an image when `--imageUrl` is supplied), generate a 3-D model, and export `exported.glb` to the Apify key-value store.
 
-### Installation
+### Optional CLI flags
+```bash
+--imageUrl <url>    # remote image to use instead of leg.png
+--prompt "neon pink cyberpunk pattern"  # combine prompt + image workflow
+--headed            # run browser in non-headless mode
+--debug             # verbose logging
+```
 
-1. Navigate to the project directory:
-   ```
-   cd preferences-app
-   ```
+## Deploy to Apify Cloud
+```bash
+# authenticate once
+apify login # paste your API token
 
-2. Install the dependencies:
-   ```
-   npm install
-   ```
+# deploy actor from my-actor directory
+apify push
+```
+Then trigger the Actor either via the Apify UI or a simple HTTPS request:
+```bash
+curl -X POST \
+  -d '{"imageUrl":"https://example.com/leg.jpg"}' \
+  "https://api.apify.com/v2/acts/<username>~prosthetic-design/run-sync?token=<APIFY_TOKEN>"
+```
 
-3. Start the development server:
-   ```
-   npm start
-   ```
+## Challenges
+- **No Vizcom API** – we reverse-engineered the UI and built resilient Playwright selectors with retry logic.
+- **Headless browser quirks** – WebGL and dynamic React components required multiple workarounds.
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+## Accomplishments
+- Fully automated Vizcom generation flow with zero manual clicks
+- Seamless e-mail hand-off to manufacturers
+- End-to-end personalization from user style input to production-ready 3-D model
 
-### Using the Application
+## What we learned
+- Deep dive into Apify's Python SDK and storage primitives
+- Coordinating multiple agentic frameworks (Apify, MCP) in a single product
 
-1. **Enter your Gemini API Key:**
-   - Paste your Gemini API key in the "Gemini API Configuration" section
-   - Alternatively, you can edit the `src/config.js` file to include your API key permanently:
-     ```javascript
-     export const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
-     ```
+## Sample generated models
 
-2. **Select your preferences:**
-   - Choose options from each dropdown menu
-   - You can select as many or as few preferences as you like
+![Generated color variants](assets/color_variants.png)
 
-3. **Generate the description:**
-   - Click the "Generate Prosthetic Description" button
-   - The AI-generated description will appear below
+<sub>Four color-way examples</sub>
 
-## Security Note
+## Roadmap
+- Expand beyond legs: arms, feet, and limb covers
+- ✅ Add live 3-D preview in the web UI (three.js)
+- Integrate pricing & order-tracking APIs from manufacturers
 
-- The API key is stored in memory only and not sent to any server besides Google's API services
-- For security, avoid committing your API key to version control
-- Consider using environment variables for production deployments
-
-## Technologies Used
-
-- React
-- Material UI
-- Google Generative AI (Gemini)
-- JavaScript
-- CSS 
+## License
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information. 

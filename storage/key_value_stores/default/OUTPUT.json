@@ -1,0 +1,6 @@
+{
+  "status": "success",
+  "exportedGlbPath": "/Users/ym/Documents/Dev/aws_mcp_hackathon/apify_agent/exported.glb",
+  "originalFilename": "leg.png",
+  "resultUrl": "https://api.apify.com/v2/key-value-stores/default/records/exported.glb"
+}
